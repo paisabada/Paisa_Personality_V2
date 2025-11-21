@@ -1,69 +1,29 @@
-import { ImageResponse } from '@vercel/og';
+import fs from "fs";
+import path from "path";
 
-export const config = {
-  runtime: 'edge',
-};
+export default async function handler(req, res) {
+  try {
+    const { type = "budget", name = "" } = req.query;
 
-export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
+    // Map result → image file
+    const fileMap = {
+      budget: "budget.png",
+      risky: "risky.png",
+      panda: "panda.png"
+    };
 
-  const name = searchParams.get("name")?.slice(0, 20) || "";  
-  const type = searchParams.get("type") || "budget";
+    const filename = fileMap[type] || "budget.png";
 
-  const baseUrl = `${req.headers.get("host")}/ogs`;
+    // Load base OG image
+    const imgPath = path.join(process.cwd(), "public", "ogs", filename);
+    const imgBuffer = fs.readFileSync(imgPath);
 
-  const imgMap = {
-    budget: "budget.png",
-    risky: "risky.png",
-    panda: "panda.png",
-  };
+    // Just return static PNG for now
+    res.setHeader("Content-Type", "image/png");
+    res.status(200).send(imgBuffer);
 
-  const selectedImage = imgMap[type] || imgMap["budget"];
-
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "1200px",
-          height: "630px",
-          position: "relative",
-          fontFamily: "Arial",
-        }}
-      >
-        {/* Background OG Template */}
-        <img
-          src={`https://${baseUrl}/${selectedImage}`}
-          style={{
-            position: "absolute",
-            width: "1200px",
-            height: "630px",
-            top: 0,
-            left: 0,
-            objectFit: "cover",
-          }}
-        />
-
-        {/* NAME TEXT (COMMON SAFE POSITION) */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "40px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            fontSize: "70px",
-            fontWeight: "700",
-            color: "white",
-            textShadow: "0 4px 12px rgba(0,0,0,0.50)",
-            letterSpacing: "2px",
-          }}
-        >
-          {name}
-        </div>
-      </div>
-    ),
-    {
-      width: 1200,
-      height: 630,
-    }
-  );
+  } catch (error) {
+    console.error("OG ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
 }
