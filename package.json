@@ -8,9 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "13.4.0",        // or your version
+    "next": "14",        // or your version
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "sharp": "^0.32.0"
+    "sharp": "^0.32.1"
   }
 }
