@@ -1,5 +1,5 @@
 {
-  "name": "paisa-personality",
+  "name": "paisa-personality-v2",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,11 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "14",
+    "next": "13.4.0",        // or your version
     "react": "18.2.0",
-    "react-dom": "18.2.0"
-  },
-  "engines": {
-    "node": ">=22"
+    "react-dom": "18.2.0",
+    "sharp": "^0.32.0"
   }
 }
