@@ -2,9 +2,8 @@
 const nextConfig = {
   reactStrictMode: false,
   experimental: {
-    // Allow Vercel OG Image Route
-    runtime: 'edge'
+    serverActions: false
   }
-}
+};
 
 module.exports = nextConfig;
