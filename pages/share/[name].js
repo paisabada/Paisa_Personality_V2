@@ -2,52 +2,43 @@
 import Head from "next/head";
 
 export async function getServerSideProps({ params, query, req }) {
-  const { name } = params;
-  // query.type default 'budget' if not provided
+  const name = params.name || query.name || "User";
   const type = query.type || "budget";
 
-  // Build absolute origin (works both locally and on Vercel)
-  const protocol = req.headers["x-forwarded-proto"] || (req.headers.referer && req.headers.referer.split(":")[0]) || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  const origin = `${protocol}://${host}`;
-
+  const origin = (req.headers['x-forwarded-proto'] ? `${req.headers['x-forwarded-proto']}://` : 'https://') + (req.headers.host || 'paisa-personality-v2.vercel.app');
   const ogImage = `${origin}/api/og?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}`;
 
-  // pageTitle / description optional
-  const title = `${name} — Your Paisa Personality Result`;
-  const description = `I tried Paisa Personality quiz — my result: ${type}.`;
-
   return {
-    props: {
-      name,
-      type,
-      ogImage,
-      title,
-      description,
-    },
+    props: { name, type, origin, ogImage }
   };
 }
 
-export default function SharePage({ name, type, ogImage, title, description }) {
+export default function SharePage({ name, type, origin, ogImage }) {
+  const url = `${origin}/share/${encodeURIComponent(name)}?type=${encodeURIComponent(type)}`;
+
   return (
     <>
       <Head>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <meta property="og:title" content={title} />
-        <meta property="og:description" content={description} />
+        <title>{name} — Your result</title>
+
+        {/* Required Open Graph */}
+        <meta property="og:url" content={url} />
         <meta property="og:type" content="website" />
+        <meta property="og:title" content={`${name} — Your result: ${type}`} />
+        <meta property="og:description" content={`I tried the Paisa Personality quiz — ${name} — Your result: ${type}. Share and see yours!`} />
         <meta property="og:image" content={ogImage} />
-        <meta property="og:image:alt" content={`Paisa Personality - ${type}`} />
+        <meta property="og:image:alt" content={`Result image for ${name}`} />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${name} — Your result: ${type}`} />
+        <meta name="twitter:description" content={`I tried the Paisa Personality quiz — ${name} — Your result: ${type}.`} />
         <meta name="twitter:image" content={ogImage} />
+        {/* Optional: add fb:app_id if you have one */}
+        {/* <meta property="fb:app_id" content="YOUR_FB_APP_ID" /> */}
       </Head>
 
-      <main style={{display:"flex",alignItems:"center",justifyContent:"center",height:"70vh",flexDirection:"column"}}>
-        <h1>{name}</h1>
-        <p>Result: <b>{type}</b></p>
-        <img src={ogImage} alt={`result ${type}`} style={{maxWidth:"90%",height:"auto"}}/>
-        <p style={{marginTop:20}}>Click share to post on Facebook</p>
+      <main>
+        <h1>{name} — {type}</h1>
+        <p>Share preview should show the generated image.</p>
       </main>
     </>
   );
