@@ -1,42 +1,48 @@
 // pages/api/submit.js
-import Airtable from 'airtable';
-
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
-const TABLE = process.env.AIRTABLE_TABLE_NAME || 'Responses';
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
+import fetch from "node-fetch";
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") return res.status(405).end();
+
+  const { name, email, mobile, result } = req.body;
+  if (!name || !result) return res.status(400).json({ error: "Missing" });
+
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
+
+  const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+  const AIRTABLE_TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || "Responses";
 
   try {
-    const { name, email, mobile, result } = req.body;
-
-    if (!name || !result) return res.status(400).json({ error: 'Missing name or result' });
-
-    // create a record
-    const created = await base(TABLE).create([
+    const resp = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE_NAME)}`,
       {
-        fields: {
-          Name: name,
-          Email: email || '',
-          Mobile: mobile || '',
-          Result: result,
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      },
-    ]);
+        body: JSON.stringify({
+          fields: {
+            Name: name,
+            Email: email || "",
+            Mobile: mobile || "",
+            Result: result,
+            Token: token
+          }
+        })
+      }
+    );
 
-    const record = created[0];
-    const recordId = record.id;
+    const data = await resp.json();
+    if (!resp.ok) return res.status(500).json({ error: data });
 
-    // create a sharable url (we'll use /share route that accepts result & name)
-    const shareUrl = `${BASE_URL}/share?type=${encodeURIComponent(result.toLowerCase())}&name=${encodeURIComponent(name)}&rid=${encodeURIComponent(recordId)}`;
+    // return share url
+    const origin = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.host}`;
+    const shareUrl = `${origin}/share?token=${encodeURIComponent(token)}`;
 
-    // update record with share url (optional)
-    await base(TABLE).update(recordId, { SharedUrl: shareUrl });
-
-    return res.status(200).json({ ok: true, shareUrl, recordId });
+    return res.status(200).json({ ok: true, shareUrl, token });
   } catch (err) {
-    console.error('submit err', err);
-    return res.status(500).json({ error: 'Server error', details: String(err) });
+    return res.status(500).json({ error: err.message });
   }
 }
