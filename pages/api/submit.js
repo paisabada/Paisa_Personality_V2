@@ -1,50 +1,64 @@
 // pages/api/submit.js
+import fetch from "node-fetch";
+
+const AIRTABLE_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_TABLE = process.env.AIRTABLE_TABLE_NAME || "Responses";
+const SITE_URL = process.env.SITE_URL || "https://paisa-personality-v2.vercel.app";
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { name, email, mobile, resultType } = req.body;
+  const { name, email, mobile, result } = req.body || {};
 
-  if (!name || !resultType) {
-    return res.status(400).json({ error: 'name and resultType required' });
+  if (!name || !result) {
+    return res.status(400).json({ error: "Missing fields" });
   }
 
-  const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-  const AIRTABLE_TABLE = process.env.AIRTABLE_TABLE || 'Responses';
-
-  const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE)}`;
-
-  // construct image url using your existing OG endpoint
-  const resultImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL ? (process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL}`) : ''}/api/og?type=${encodeURIComponent(resultType)}&name=${encodeURIComponent(name)}`;
-
-  const payload = {
-    fields: {
-      Name: name,
-      Email: email || '',
-      Mobile: mobile || '',
-      ResultType: resultType,
-      ResultImageUrl: resultImageUrl
-    }
-  };
-
   try {
-    const r = await fetch(airtableUrl, {
-      method: 'POST',
+    // Save to Airtable
+    const airtableRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${AIRTABLE_KEY}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        fields: {
+          Name: name,
+          Email: email || "",
+          Mobile: mobile || "",
+          Result: result,
+        },
+      }),
     });
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(500).json({ error: 'Airtable error', details: data });
+
+    const airtableJson = await airtableRes.json();
+
+    // Build share URL (public page)
+    // We'll include a quote param for auto message in FB share dialog
+    const shareUrl = `${SITE_URL}/share?type=${encodeURIComponent(result)}&name=${encodeURIComponent(name)}`;
+    const quote = `I tried the Paisa Personality quiz — My result: ${result.charAt(0).toUpperCase() + result.slice(1)}! Try it: ${shareUrl}`;
+
+    // Optionally update Airtable record with share_url
+    if (airtableJson && airtableJson.id) {
+      await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}/${airtableJson.id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${AIRTABLE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fields: {
+            share_url: shareUrl,
+          },
+        }),
+      }).catch(() => {});
     }
 
-    // Return share URL (you will create /share page below)
-    const sharePath = `/share?type=${encodeURIComponent(resultType)}&name=${encodeURIComponent(name)}&id=${encodeURIComponent(data.id)}`;
-    return res.status(200).json({ ok: true, shareUrl: sharePath, record: data });
+    return res.status(200).json({ ok: true, shareUrl, quote });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error("submit error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 }
