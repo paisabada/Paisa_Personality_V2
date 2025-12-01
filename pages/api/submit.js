@@ -1,64 +1,42 @@
 // pages/api/submit.js
-import fetch from "node-fetch";
+import Airtable from 'airtable';
 
-const AIRTABLE_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE = process.env.AIRTABLE_TABLE_NAME || "Responses";
-const SITE_URL = process.env.SITE_URL || "https://paisa-personality-v2.vercel.app";
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
+const TABLE = process.env.AIRTABLE_TABLE_NAME || 'Responses';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const { name, email, mobile, result } = req.body || {};
-
-  if (!name || !result) {
-    return res.status(400).json({ error: "Missing fields" });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Save to Airtable
-    const airtableRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const { name, email, mobile, result } = req.body;
+
+    if (!name || !result) return res.status(400).json({ error: 'Missing name or result' });
+
+    // create a record
+    const created = await base(TABLE).create([
+      {
         fields: {
           Name: name,
-          Email: email || "",
-          Mobile: mobile || "",
+          Email: email || '',
+          Mobile: mobile || '',
           Result: result,
         },
-      }),
-    });
+      },
+    ]);
 
-    const airtableJson = await airtableRes.json();
+    const record = created[0];
+    const recordId = record.id;
 
-    // Build share URL (public page)
-    // We'll include a quote param for auto message in FB share dialog
-    const shareUrl = `${SITE_URL}/share?type=${encodeURIComponent(result)}&name=${encodeURIComponent(name)}`;
-    const quote = `I tried the Paisa Personality quiz — My result: ${result.charAt(0).toUpperCase() + result.slice(1)}! Try it: ${shareUrl}`;
+    // create a sharable url (we'll use /share route that accepts result & name)
+    const shareUrl = `${BASE_URL}/share?type=${encodeURIComponent(result.toLowerCase())}&name=${encodeURIComponent(name)}&rid=${encodeURIComponent(recordId)}`;
 
-    // Optionally update Airtable record with share_url
-    if (airtableJson && airtableJson.id) {
-      await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}/${airtableJson.id}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${AIRTABLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fields: {
-            share_url: shareUrl,
-          },
-        }),
-      }).catch(() => {});
-    }
+    // update record with share url (optional)
+    await base(TABLE).update(recordId, { SharedUrl: shareUrl });
 
-    return res.status(200).json({ ok: true, shareUrl, quote });
+    return res.status(200).json({ ok: true, shareUrl, recordId });
   } catch (err) {
-    console.error("submit error:", err);
-    return res.status(500).json({ error: "Server error" });
+    console.error('submit err', err);
+    return res.status(500).json({ error: 'Server error', details: String(err) });
   }
 }
