@@ -1,53 +1,38 @@
-// components/SubmitForm.jsx
+// components/SubmitForm.jsx (simplified)
 import { useState } from "react";
-import { useRouter } from "next/router";
 
-export default function SubmitForm() {
+export default function SubmitForm({ result }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
-  const [result, setResult] = useState(""); // set result from quiz (budget|panda|risky)
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !result) return alert("Please fill name and finish quiz.");
-
     setLoading(true);
-    try {
-      const r = await fetch("/api/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, mobile, result }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw j;
-      // Redirect to share page with quote param (optional)
-      const redirectUrl = `${j.shareUrl}&quote=${encodeURIComponent(j.quote)}`;
-      // Use router push so share page OG tags are served server-side
-      router.push(redirectUrl);
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong. Try again.");
-      setLoading(false);
+    const res = await fetch("/api/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, mobile, result })
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (data?.shareUrl) {
+      // open Facebook share dialog with quote param (prefill message)
+      const quote = `I tried the Paisa Personality quiz — my result: ${result}. Try now!`;
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.shareUrl)}&quote=${encodeURIComponent(quote)}`;
+      window.open(fbUrl, "_blank", "width=800,height=600");
+    } else {
+      alert("Something went wrong");
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit}>
-      <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Name" required />
-      <input value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Email" />
-      <input value={mobile} onChange={(e)=>setMobile(e.target.value)} placeholder="Mobile" />
-      {/* result should be set by quiz logic; here's a quick selector for testing */}
-      <select value={result} onChange={(e)=>setResult(e.target.value)} required>
-        <option value="">Pick result</option>
-        <option value="budget">Budget</option>
-        <option value="panda">Panda</option>
-        <option value="risky">Risky</option>
-      </select>
-
-      <button type="submit" disabled={loading}>{loading ? "Saving..." : "Submit & Share"}</button>
+      <input required value={name} onChange={e=>setName(e.target.value)} placeholder="Name" />
+      <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email"/>
+      <input value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="Mobile"/>
+      <button type="submit" disabled={loading}>Share on Facebook</button>
     </form>
   );
 }
