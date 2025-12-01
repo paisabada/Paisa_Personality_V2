@@ -1,44 +1,58 @@
-import { useState } from "react";
+import { useRouter } from "next/router";
 
-export default function ResultPage({ result }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
+export default function ResultPage() {
+  const router = useRouter();
+  const { result, token } = router.query;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // ---- Facebook Share Function ----
+  function shareToFacebook(resultKey, token) {
+    const QUOTES = {
+      panda:
+        "I tried the Paisa Personality Quiz — my result: PANDA 🐼💸. Check yours & see what kind of investor you are!",
+      budget:
+        "I tried the Paisa Personality Quiz — my result: BUDGETER 🧾💰. Try it — find out your money-personality and share!",
+      risky:
+        "I tried the Paisa Personality Quiz — my result: RISK-LOVER 🔥📈. Dare to check yours and compare with friends!",
+    };
 
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, mobile, result })
-    });
+    const shareUrl = encodeURIComponent(
+      `${window.location.origin}/share?token=${token}`
+    );
+    const quote = encodeURIComponent(QUOTES[resultKey] || QUOTES["panda"]);
 
-    const data = await res.json();
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`;
 
-    if (data.shareUrl) {
-      const quote = `I tried Paisa Personality — my result: ${result}`;
-      const fb = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(data.shareUrl)}&quote=${encodeURIComponent(quote)}`;
-      window.location.href = fb;
-    } else {
-      alert("Error submitting");
-    }
-  };
+    window.open(fbUrl, "_blank", "noopener,noreferrer,width=820,height=540");
+  }
 
   return (
-    <div>
-      <h1>Paisa Personality Quiz</h1>
+    <div style={{ padding: 40 }}>
+      <h1>Your Result: {result}</h1>
 
-      <form onSubmit={handleSubmit}>
-        <input placeholder="Name" onChange={(e) => setName(e.target.value)} />
-        <input placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
-        <input placeholder="Mobile" onChange={(e) => setMobile(e.target.value)} />
-        <button type="submit">Submit & Share</button>
-      </form>
+      <img
+        src={`/ogs/${result}.png`}
+        alt="result"
+        width="400"
+        style={{ marginTop: 20 }}
+      />
+
+      <p style={{ marginTop: 20 }}>
+        I tried the Paisa Personality Quiz — my result: {result}
+      </p>
+
+      {/* --- SHARE BUTTON --- */}
+      <button
+        style={{
+          marginTop: 30,
+          padding: "12px 22px",
+          border: "1px solid #000",
+          background: "#fff",
+          cursor: "pointer",
+        }}
+        onClick={() => shareToFacebook(result, token)}
+      >
+        Share on Facebook
+      </button>
     </div>
   );
-}
-
-export function getServerSideProps({ query }) {
-  return { props: { result: query.result || "panda" } };
 }
