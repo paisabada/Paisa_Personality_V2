@@ -1,67 +1,41 @@
 // pages/share.js
-import Head from "next/head";
-import { useRouter } from "next/router";
-import { useEffect } from "react";
+import Head from 'next/head';
 
-export default function SharePage({ type, name, absoluteImageUrl, quote }) {
-  const router = useRouter();
-  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
+export default function SharePage({ query }) {
+  // fallback if SSR not present
+  const type = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('type') : query?.type;
+  const name = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('name') : query?.name;
 
-  useEffect(() => {
-    // if you want auto-open FB share dialog: (optional)
-    // window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}&quote=${encodeURIComponent(quote)}`, "_blank","width=800,height=600");
-  }, []);
+  const title = `You — Your result: ${name ? name + ' — ' + (type || '') : `Your result: ${type}`}`;
 
-  const shareFacebook = () => {
-    const url = `${pageUrl}`;
-    const fb = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(quote)}`;
-    window.open(fb, "facebook-share-dialog", "width=800,height=600");
-  };
+  const imageUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/ogs/${type || 'panda'}.png`;
 
   return (
     <>
       <Head>
-        <title>{name} — Your result: {type}</title>
-        <meta property="og:title" content={`${name} — Your result: ${type}`} />
-        <meta property="og:description" content={`I tried the Paisa Personality quiz — My result: ${type}. Try it!`} />
+        <title>{title}</title>
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={`I tried the Paisa Personality quiz — ${name || 'See your result!'}`} />
+        <meta property="og:image" content={imageUrl} />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={typeof window !== "undefined" ? window.location.href : ""} />
-        {/* OG image must be absolute URL */}
-        <meta property="og:image" content={absoluteImageUrl} />
-        <meta name="twitter:card" content="summary_large_image" />
+        <meta property="og:url" content={`${process.env.NEXT_PUBLIC_BASE_URL}/share?type=${type}&name=${name}`} />
       </Head>
 
-      <main style={{textAlign:'center', padding: 20}}>
-        <h1>Hey {name} — Your result: {type}</h1>
-        <img src={absoluteImageUrl} alt={`Result ${type}`} style={{maxWidth: '100%'}} />
-        <p>{quote}</p>
-
-        <div style={{marginTop:20}}>
-          <button onClick={shareFacebook}>Share on Facebook</button>
-          {/* You can also show copy link button */}
-          <button onClick={() => navigator.clipboard.writeText(pageUrl)}>Copy link</button>
+      <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+        <img src={imageUrl} alt={`Result ${type}`} style={{ maxWidth: '100%', borderRadius: 8 }} />
+        <div style={{ marginTop: 16 }}>
+          <h1>{title}</h1>
+          <p>Share this result on Facebook</p>
+          <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${process.env.NEXT_PUBLIC_BASE_URL}/share?type=${type}&name=${name}`)}`} target="_blank" rel="noreferrer">
+            Share on Facebook
+          </a>
         </div>
       </main>
     </>
   );
 }
 
-// server side props to build absolute og:image url
-export async function getServerSideProps({ query, req }) {
-  const { type = "budget", name = "You" } = query;
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers.host; // vercel host
-  const SITE = process.env.SITE_URL || `${proto}://${host}`;
-
-  const absoluteImageUrl = `${SITE}/api/og?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}`;
-  const quote = `I tried the Paisa Personality quiz — My result: ${type.charAt(0).toUpperCase()+type.slice(1)}! Try it: ${SITE}/share?type=${encodeURIComponent(type)}&name=${encodeURIComponent(name)}`;
-
-  return {
-    props: {
-      type,
-      name,
-      absoluteImageUrl,
-      quote,
-    },
-  };
+// SSR for OG-friendly meta when crawler requests
+export async function getServerSideProps({ query }) {
+  return { props: { query } };
 }
