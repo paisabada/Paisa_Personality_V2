@@ -1,7 +1,20 @@
-"dependencies": {
-  "airtable": "^0.12.2",
-  "node-fetch": "^2.6.7",
-  "next": "14.2.3",
-  "react": "18.2.0",
-  "react-dom": "18.2.0"
+{
+  "name": "paisa-personality-v2",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "airtable": "^1.9.1",
+    "node-fetch": "2.6.9",
+    "next": "14.2.33",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
 }
