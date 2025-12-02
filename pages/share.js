@@ -1,4 +1,6 @@
+// pages/share.js
 import Head from "next/head";
+import { airtableFindByToken } from "../lib/airtable";
 
 export default function Share({ title, desc, image }) {
   return (
@@ -19,24 +21,11 @@ export default function Share({ title, desc, image }) {
 
 export async function getServerSideProps({ query }) {
   const token = query.token || null;
-
-  let result = "panda"; // fallback
-
+  let result = "panda";
   if (token) {
-    const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-    const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-    const AIRTABLE_TABLE_NAME = process.env.AIRTABLE_TABLE_NAME || "Responses";
-
-    const apiURL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=Token='${token}'`;
-
-    const r = await fetch(apiURL, {
-      headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` },
-    });
-    const d = await r.json();
-
-    if (d.records?.length) result = d.records[0].fields.Result;
+    const record = await airtableFindByToken(token);
+    if (record?.fields?.Result) result = record.fields.Result;
   }
-
   const base = process.env.NEXT_PUBLIC_APP_URL;
   return {
     props: {
