@@ -4,13 +4,21 @@ import { useRouter } from "next/router";
 
 export default function ResultPage() {
   const router = useRouter();
-  const { result = "panda", token } = router.query;
+  // prefer router.query.result but fallback to 'panda'
+  const { result: qResult = "panda", token } = router.query;
+  const [result, setResult] = useState(qResult);
   const [fbLoaded, setFbLoaded] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // keep result in sync if router changes
+  useEffect(() => {
+    if (qResult) setResult(qResult);
+  }, [qResult]);
+
   // --- load FB SDK once ---
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (window.FB) {
       setFbLoaded(true);
       return;
@@ -36,81 +44,61 @@ export default function ResultPage() {
     document.body.appendChild(s);
   }, []);
 
-  // quotes mapping (for share text)
-  const QUOTES = {
-    panda:
-      "I tried the Paisa Personality Quiz — my result: PANDA 🐼💸. Check yours & see what kind of investor you are!",
-    budget:
-      "I tried the Paisa Personality Quiz — my result: BUDGETER 🧾💰. Try it — find out your money-personality and share!",
-    risky:
-      "I tried the Paisa Personality Quiz — my result: RISK-LOVER 🔥📈. Dare to check yours and compare with friends!",
-  };
-
   function getShareUrl() {
-    // share page should be accessible and contain OG tags
     const base = window.location.origin;
-    const tokenParam = token ? `token=${encodeURIComponent(token)}` : "";
-    const rParam = `r=${encodeURIComponent(result)}`;
-    const q = [tokenParam, rParam].filter(Boolean).join("&");
-    const url = `${base}/share${q ? "?" + q : ""}`;
-    return url;
+    // ensure result is safe and lowercase (matches your /ogs filenames)
+    const r = String(result || "panda").toLowerCase();
+    // include token if available so share page can show proper OG from Airtable
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    return `${base}/share?r=${encodeURIComponent(r)}${tokenParam}`;
   }
 
-  // Use FB UI share dialog and detect response (post_id)
+  // use FB UI share dialog and depend on callback to detect post_id
   const shareToFacebook = () => {
     const shareUrl = getShareUrl();
     setLoading(true);
 
-    // If FB SDK available, use share_open_graph for better control
     if (window.FB && window.FB.ui) {
       window.FB.ui(
         {
-          method: "share_open_graph",
-          action_type: "og.shares",
-          action_properties: JSON.stringify({
-            object: {
-              "og:url": shareUrl,
-              "og:title": `Your Result: ${result}`,
-              "og:description": QUOTES[result] || QUOTES.panda,
-              // NOTE: og:image should be present in the /share page OG tags,
-              // but we can also pass a direct image URL (absolute) here if needed:
-              // "og:image": `${window.location.origin}/ogs/${result}.png`
-            },
-          }),
+          method: "share",
+          href: shareUrl,
+          quote: `I tried the Paisa Personality Quiz — my result: ${result}. Try it!`,
         },
         function (response) {
           setLoading(false);
-          // If FB returns post_id => success
           if (response && response.post_id) {
+            // FB returned post_id => confirmed
             setRevealed(true);
-            return;
+          } else {
+            // Not confirmed or browser blocking - show friendly fallback, don't show scary modal
+            window.alert(
+              "Facebook didn't return a confirmation. If a composer opened, finish the post there. Otherwise click 'I shared' to reveal."
+            );
           }
-
-          // Some platforms/browsers won't return post_id even if posted (unreliable)
-          // Fallback: show manual "I shared" option
-          alert(
-            "Share was not confirmed automatically. If the composer opened, complete the post in Facebook. Then click 'I shared' to reveal your result."
-          );
         }
       );
       return;
     }
 
-    // Fallback: open sharer.php in a new tab (can't detect post_id)
-    const sharer = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+    // Fallback: open sharer.php and show manual confirm button
+    // append cache-buster so Facebook doesn't show stale cached image
+    const fallbackUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
       shareUrl
-    )}&quote=${encodeURIComponent(QUOTES[result] || QUOTES.panda)}`;
+    )}&quote=${encodeURIComponent(
+      `I tried the Paisa Personality Quiz — my result: ${result}. Try it!`
+    )}&v=${Date.now()}`;
 
-    window.open(sharer, "_blank", "noopener,noreferrer,width=820,height=540");
+    window.open(fallbackUrl, "_blank", "noopener,noreferrer,width=820,height=540");
     setLoading(false);
-    alert(
-      "If the FB share window opened, complete the share. Then click 'I shared' to reveal your result."
+    window.alert(
+      "A Facebook window opened. Complete the share there. If you completed it, click 'I shared — reveal my result'."
     );
   };
 
   // manual fallback button for users who can't share via sdk/popup
   const manualShared = () => {
-    // Optionally, you could verify server-side (not possible with public FB share)
+    // Optionally you can call an API to verify/share server-side.
     setRevealed(true);
   };
 
@@ -118,38 +106,31 @@ export default function ResultPage() {
     <div style={{ padding: 30, fontFamily: "Arial, sans-serif" }}>
       <h1 style={{ textAlign: "right" }}>Your Result: {result}</h1>
 
-      {/* If not revealed -> show CTA and preview placeholder (do NOT show real image) */}
+      {/* If not revealed -> show CTA and small placeholder */}
       {!revealed ? (
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
           <div>
-            {/* DO NOT show the actual /ogs/{result}.png here.
-                Show a neutral blurred placeholder or hidden box to avoid spoiling. */}
+            {/* show a blurred/hidden preview placeholder (not the real OG image) */}
             <div
               style={{
                 width: 500,
                 height: 300,
-                background: "#f3f3f3",
+                background: "#f0f0f0",
+                borderRadius: 8,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#999",
-                border: "1px solid #ddd",
-                borderRadius: 6,
+                color: "#888",
+                border: "1px solid #e0e0e0",
               }}
             >
-              <div>
-                <div style={{ fontSize: 16, marginBottom: 8 }}>Share to reveal</div>
-                <div style={{ fontSize: 12, color: "#bbb" }}>
-                  Your result will be revealed after Facebook share is confirmed.
-                </div>
-              </div>
+              <div>Reveal after you share on Facebook</div>
             </div>
           </div>
 
           <div style={{ maxWidth: 360 }}>
             <p>
-              To reveal your full result, please share your result on Facebook.
-              (This keeps the quiz viral and helps us grow.)
+              To reveal your full result, please share your result on Facebook. (This keeps the quiz viral and helps us grow.)
             </p>
 
             <button
@@ -183,14 +164,14 @@ export default function ResultPage() {
             </div>
 
             <small style={{ display: "block", marginTop: 10, color: "#666" }}>
-              Tip: allow popups and make sure you're logged into Facebook in this browser.
+              Tip: login to Facebook in this browser and allow popups for the best experience.
             </small>
           </div>
         </div>
       ) : (
         // revealed true -> show real result (no blur)
         <div style={{ marginTop: 20 }}>
-          <img src={`/ogs/${result}.png`} alt={result} width="600" style={{ border: "1px solid #ddd" }} />
+          <img src={`/ogs/${String(result).toLowerCase()}.png`} alt={result} width="600" style={{ border: "1px solid #ddd" }} />
           <p style={{ marginTop: 12 }}>I tried the Paisa Personality Quiz — my result: {result}</p>
 
           <div style={{ marginTop: 12 }}>
