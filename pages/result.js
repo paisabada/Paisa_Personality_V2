@@ -10,6 +10,7 @@ export default function ResultPage() {
   const [fbLoaded, setFbLoaded] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
 
   // keep result in sync if router changes
   useEffect(() => {
@@ -45,53 +46,64 @@ export default function ResultPage() {
   }, []);
 
   function getShareUrl() {
-    const base = window.location.origin;
+    // origin
+    const base = typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL || "";
     // ensure result is safe and lowercase (matches your /ogs filenames)
     const r = String(result || "panda").toLowerCase();
     // include token if available so share page can show proper OG from Airtable
     const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
-    return `${base}/share?r=${encodeURIComponent(r)}${tokenParam}`;
+    // cache-buster to force FB to re-fetch OG tags when necessary
+    const v = `&v=${Date.now()}`;
+
+    return `${base}/share?r=${encodeURIComponent(r)}${tokenParam}${v}`;
   }
 
   // use FB UI share dialog and depend on callback to detect post_id
   const shareToFacebook = () => {
     const shareUrl = getShareUrl();
     setLoading(true);
+    setNotice("");
 
-    if (window.FB && window.FB.ui) {
-      window.FB.ui(
-        {
-          method: "share",
-          href: shareUrl,
-          quote: `I tried the Paisa Personality Quiz — my result: ${result}. Try it!`,
-        },
-        function (response) {
-          setLoading(false);
-          if (response && response.post_id) {
-            // FB returned post_id => confirmed
-            setRevealed(true);
-          } else {
-            // Not confirmed or browser blocking - show friendly fallback, don't show scary modal
-            window.alert(
-              "Facebook didn't return a confirmation. If a composer opened, finish the post there. Otherwise click 'I shared' to reveal."
-            );
+    try {
+      if (window.FB && typeof window.FB.ui === "function") {
+        window.FB.ui(
+          {
+            method: "share",
+            href: shareUrl,
+            quote: `I tried the Paisa Personality Quiz — my result: ${result}. Try it!`,
+          },
+          function (response) {
+            setLoading(false);
+            // If FB returns post_id -> they posted
+            if (response && response.post_id) {
+              setRevealed(true);
+              setNotice("");
+            } else {
+              // FB didn't return post_id (common when composer opened but no callback)
+              // Show non-blocking hint for user to finish post manually and click reveal.
+              setNotice(
+                "If a Facebook composer opened, finish posting there. If you completed the post, click \"I shared — reveal my result\" below."
+              );
+            }
           }
-        }
-      );
-      return;
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn("FB.ui failed:", err);
+      setLoading(false);
+      // fallthrough to fallback
     }
 
     // Fallback: open sharer.php and show manual confirm button
-    // append cache-buster so Facebook doesn't show stale cached image
+    // include cache-buster in shareUrl (already included in getShareUrl)
     const fallbackUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
       shareUrl
-    )}&quote=${encodeURIComponent(
-      `I tried the Paisa Personality Quiz — my result: ${result}. Try it!`
-    )}&v=${Date.now()}`;
+    )}&quote=${encodeURIComponent(`I tried the Paisa Personality Quiz — my result: ${result}. Try it!`)}`;
 
     window.open(fallbackUrl, "_blank", "noopener,noreferrer,width=820,height=540");
     setLoading(false);
-    window.alert(
+    setNotice(
       "A Facebook window opened. Complete the share there. If you completed it, click 'I shared — reveal my result'."
     );
   };
@@ -100,6 +112,7 @@ export default function ResultPage() {
   const manualShared = () => {
     // Optionally you can call an API to verify/share server-side.
     setRevealed(true);
+    setNotice("");
   };
 
   return (
@@ -162,6 +175,12 @@ export default function ResultPage() {
                 I shared — reveal my result
               </button>
             </div>
+
+            {notice && (
+              <div style={{ marginTop: 12, color: "#444", background: "#fff7cc", padding: 10, borderRadius: 6 }}>
+                {notice}
+              </div>
+            )}
 
             <small style={{ display: "block", marginTop: 10, color: "#666" }}>
               Tip: login to Facebook in this browser and allow popups for the best experience.
